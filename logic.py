@@ -31,7 +31,7 @@ class Pokemon:
             self.last_feed_time = current_time
             return f"Kesehatan pokemon meningkat. Kesehatan pokemon sekarang: `{self.hp}`"
         else:
-            return f"Waktu makan pokemon berikutnya: `{(current_time + delta_time).strftime('H:%M:%S')}`"
+            return f"Waktu makan pokemon berikutnya: `{(current_time + delta_time).strftime('%H:%M:%S')}`"
     async def get_name(self):
         url = f'https://pokeapi.co/api/v2/pokemon/{self.pokemon_number}'
         async with aiohttp.ClientSession() as session:
@@ -94,7 +94,7 @@ class Pokemon:
 
             
 class Wizard(Pokemon):
-    async def feed(self, enemy):
+    async def feed(self):
         return await super().feed(hp_increase=20)
 
 class Fighter(Pokemon):
