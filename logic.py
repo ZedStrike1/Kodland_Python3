@@ -1,10 +1,13 @@
 import aiohttp
 import random
+import asyncio
 from random import randint
-import asyncio  # Add asyncio to handle asynchronous code
+from datetime import datetime, timedelta
+
 
 class Pokemon:
-    pokemons = {}
+    pokemons = {}  # This should be reset when the bot starts
+
 
     def __init__(self, pokemon_trainer):
         self.pokemon_trainer = pokemon_trainer
@@ -13,9 +16,22 @@ class Pokemon:
         self.img = None
         self.power = random.randint(30, 60)
         self.hp = random.randint(200, 400)
-        if pokemon_trainer not in self.pokemons:
-            self.pokemons[pokemon_trainer] = self
+        self.last_feed_time  = datetime.now()
+        self.turn_event = asyncio.Event()
 
+
+        self.pokemons[pokemon_trainer] = self  # Always add the trainer's Pokémon
+
+
+    async def feed(self, feed_interval=60, hp_increase=10):
+        current_time = datetime.now()
+        delta_time = timedelta(seconds=feed_interval)
+        if (current_time - self.last_feed_time) > delta_time:
+            self.hp += hp_increase
+            self.last_feed_time = current_time
+            return f"Kesehatan pokemon meningkat. Kesehatan pokemon sekarang: `{self.hp}`"
+        else:
+            return f"Waktu makan pokemon berikutnya: `{(current_time + delta_time).strftime('H:%M:%S')}`"
     async def get_name(self):
         url = f'https://pokeapi.co/api/v2/pokemon/{self.pokemon_number}'
         async with aiohttp.ClientSession() as session:
@@ -29,9 +45,10 @@ class Pokemon:
     async def info(self):
         if not self.name:
             self.name = await self.get_name()
-        return f"""Nama Pokemon kamu: {self.name}
-                Kekuatan Pokemon: {self.power}
-                HP Pokemon: {self.hp}"""
+        return f"""
+**Nama pokemon anda:** `{self.name.capitalize()}`
+**Power pokemon anda:** `{self.power}`
+**Kesehatan pokemon anda:** `{self.hp}`"""
 
     async def show_img(self):
         url = f'https://pokeapi.co/api/v2/pokemon/{self.pokemon_number}'
@@ -44,45 +61,58 @@ class Pokemon:
                 else:
                     return None
 
-    async def attack(self, enemy):
-        if isinstance(enemy, Wizard):
-            chance = randint(1, 5)
-            if chance == 1:
-                return "Pokemon Penyihir menggunakan perisai dalam pertarungan"
-        if enemy.hp > self.power:
-            enemy.hp -= self.power
-            return f"Pertarungan @{self.pokemon_trainer} melawan @{enemy.pokemon_trainer}\nHP @{enemy.pokemon_trainer} sekarang {enemy.hp}"
+    async def attack(self, ctx, enemy):
+        if self.hp == 0 or enemy.hp == 0:
+            return await ctx.send("Tidak bisa menyerang saat HP Pokemon 0")
         else:
-            enemy.hp = 0
-            return f"@{self.pokemon_trainer} menang melawan @{enemy.pokemon_trainer}!"
+            if {enemy.pokemon_trainer} == {self.pokemon_trainer}:
+                return await ctx.send("Ngapain Serang Diri Sendiri????")
+            else:
+                if not self.turn_event.is_set():
+                    await ctx.send("⏳ Tunggu giliranmu untuk menyerang!")
+                    return
+
+                if self.hp == 0:
+                    await ctx.send(f"{self.pokemon_trainer} tidak bisa menyerang saat HP 0!")
+                    return
+
+                if enemy.hp > self.power:
+                    enemy.hp -= self.power
+                    result = f"⚔️ {self.pokemon_trainer} menyerang {enemy.pokemon_trainer}!\n❤️ HP {enemy.pokemon_trainer} sekarang: `{enemy.hp}`"
+                else:
+                    enemy.hp = 0
+                    await ctx.send(f"🏆 {self.pokemon_trainer} menang dari {enemy.pokemon_trainer}!")
+                    return
+
+                await ctx.send(result)
 
 
+
+                # **Ganti giliran ke lawan**
+                self.turn_event.clear()
+                enemy.turn_event.set()
+
+            
 class Wizard(Pokemon):
-    # Kelas ini dapat menambahkan method dan properti khusus untuk penyihir
-    pass
-
+    async def feed(self, enemy):
+        return await super().feed(hp_increase=20)
 
 class Fighter(Pokemon):
-    async def attack(self, enemy):
-        super_power = randint(5, 15)
-        self.power += super_power
-        result = await super().attack(enemy)
-        self.power -= super_power
-        return result + f"\nPetarung menggunakan serangan super dengan kekuatan:{super_power}"
+    async def attack(self, ctx, enemy):
+        if {enemy.pokemon_trainer} == {self.pokemon_trainer}:
+            return await ctx.send("Ngapain Serang Diri Sendiri????")
+        else:
+            if self.hp == 0:
+                await ctx.send(f"{self.pokemon_trainer} tidak bisa menyerang saat HP 0!")
+                return
+            
+            super_power = randint(5, 15)
+            self.power += super_power
+            await ctx.send(f"🔥 {self.pokemon_trainer} menggunakan serangan super `{super_power}`!")
+            
+            result = await super().attack(ctx, enemy)  
+            
+            return result
 
-
-# async def main():
-#     wizard = Wizard("username1")
-#     fighter = Fighter("username2")
-
-#     print(await wizard.info())  # Await here to get the result of the coroutine
-#     print("#" * 10)
-#     print(await fighter.info())  # Await here as well
-#     print("#" * 10)
-#     # You can also await attacks if needed
-#     print(await wizard.attack(fighter))
-#     print(await fighter.attack(wizard))
-
-
-# # Run the main function inside an event loop
-# asyncio.run(main())
+    async def feed(self):
+        return await super().feed(feed_interval=10)

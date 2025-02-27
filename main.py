@@ -3,6 +3,9 @@ from discord.ext import commands
 from config import token
 from logic import Pokemon, Wizard, Fighter
 import random
+import asyncio
+from datetime import datetime, timedelta
+
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -37,26 +40,72 @@ async def go(ctx):
         await ctx.send("Anda sudah memiliki Pokémon!")
 
 @bot.command()
-async def attack(ctx):
-    target = ctx.message.mentions[0] if ctx.message.mentions else None
-    if target:
-        if target.name in Pokemon.pokemons and ctx.author.name in Pokemon.pokemons:
-            enemy = Pokemon.pokemons[target.name]
-            attacker = Pokemon.pokemons[ctx.author.name]
-            result = await attacker.attack(enemy)
-            await ctx.send(result)
-        else:
-            await ctx.send("Kedua pemain harus memiliki Pokémon untuk pertarungan!")
-    else:
+async def attack(ctx, target: discord.Member = None):
+    # If no target is provided, ask the user to mention a target
+    if target is None:
         await ctx.send("Tetapkan pemain yang ingin Anda serang dengan menyebutnya.")
+        return
+    
+    # Check if both players have a Pokémon
+    if target.name not in Pokemon.pokemons or ctx.author.name not in Pokemon.pokemons:
+        await ctx.send("Kedua pemain harus memiliki Pokémon untuk bertarung!")
+        return
+
+    # Get the attacker and the enemy Pokémon objects
+    attacker = Pokemon.pokemons[ctx.author.name]
+    enemy = Pokemon.pokemons[target.name]
+
+    # Check if either Pokémon's HP is 0
+    if attacker.hp == 0:
+        await ctx.send(f"{ctx.author.name}, Pokémon Anda sudah kehabisan HP! Anda tidak bisa menyerang.")
+        return
+    if enemy.hp == 0:
+        await ctx.send(f"{target.name}'s Pokémon sudah kehabisan HP! Mereka tidak bisa diserang.")
+        return
+
+    # Set turn if not set yet
+    if not attacker.turn_event.is_set() and not enemy.turn_event.is_set():
+        attacker.turn_event.set()
+
+    # Execute the attack if it's the attacker's turn
+    if attacker.turn_event.is_set():
+        await attacker.attack(ctx, enemy)
+    else:
+        await ctx.send("⏳ Tunggu giliranmu untuk menyerang!")
+
+
+
 
 @bot.command()
-async def info(ctx):
+async def info(ctx, member: discord.Member = None):
+    # If no member is specified, use the command author
+    if member is None:
+        member = ctx.author
+        is_self = True 
+    else:
+        is_self = False
+
+    author_name = member.name
+
+    if author_name in Pokemon.pokemons:
+        pokemon = Pokemon.pokemons[author_name]
+        await ctx.send(f"Informasi Pokémon {author_name}:\n{await pokemon.info()}")
+    else:
+        if is_self:
+            await ctx.send(f"Sepertinya Anda tidak memiliki Pokemon. Ketik `!go` untuk membuat Pokemon mu!")    
+
+        else:
+            await ctx.send(f"{author_name} tidak memiliki Pokémon.")
+
+@bot.command()
+async def feed(ctx):
     author = ctx.author.name
     if author in Pokemon.pokemons:
         pokemon = Pokemon.pokemons[author]
-        await ctx.send(await pokemon.info())
+        response = await pokemon.feed()
+        await ctx.send(response)
     else:
-        await ctx.send("Anda tidak memiliki Pokémon!")
+        await ctx.send("Sepertinya Anda tidak memiliki Pokemon. Ketik `!go` untuk membuat Pokemon mu!")    
+
 
 bot.run(token)
