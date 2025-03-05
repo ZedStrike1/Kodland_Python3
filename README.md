@@ -1,6 +1,6 @@
-#Bot Pokemon
-##Program utk Kodland
-###Ini belum sepenuhnya jadi
+Bot Pokemon
+Program utk Kodland
+Ini belum sepenuhnya jadi
 
 
 
